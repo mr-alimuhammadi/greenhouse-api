@@ -4,7 +4,6 @@ import fs from "fs";
 import path from "path";
 import generateDevicesData from "./utils/generate-devices-data";
 import { DeviceInfo } from "./types/device-info";
-import { MeasuresData } from "./types/measures-data";
 import { DeviceData } from "./types/device-data";
 import devicesRouter from "./routes/device-router";
 import chartDataRouter from "./routes/chart-data-router";
@@ -52,3 +51,5 @@ app.get("/", (req: Request, res: Response) => {
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
+
+// test();

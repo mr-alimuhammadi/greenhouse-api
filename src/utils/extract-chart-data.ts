@@ -1,79 +1,81 @@
+import { isAfter, isBefore } from "date-fns";
 import {
-  differenceInDays,
-  differenceInMonths,
-  format,
-  isAfter,
-  isBefore,
-} from "date-fns";
-import { MeasuresData } from "../types/measures-data";
-import datetimeToDayOfWeek from "./datetime-to-day-of-week";
+  MeasuresData,
+  MeasuresDataInPersianDate,
+} from "../types/measures-data";
 import { AvrageMode } from "../types/avrage-mode";
-import avrageMeasuresData from "./avrage-measures-data";
+import DateObject from "date-object";
+import toPersianDate from "./to-persian-date";
+import { ChartData } from "../types/chart-data";
+import dateToString from "./date-to-string";
+import checkDifference from "./check-difference";
 
 export default async function extractChartData(
   measuresData: MeasuresData[],
-  fromDataTime: Date,
-  toDataTime: Date,
+  fromDataTime: DateObject,
+  toDataTime: DateObject,
   avrageMode: AvrageMode = "none"
 ) {
-  const data = measuresData.filter(
-    (e) => isAfter(e.datetime, fromDataTime) && isBefore(e.datetime, toDataTime)
-  );
+  const fromJSDataTime = fromDataTime.toDate();
+  const toJSDataTime = toDataTime.toDate();
 
-  if (avrageMode === "none") {
-    if (differenceInDays(toDataTime, fromDataTime) <= 7) {
-      return data.map((e) => ({
-        datetime:
-          datetimeToDayOfWeek(e.datetime) + " " + format(e.datetime, "HH:mm"),
-        temperature: e.temperature,
-        humidity: e.humidity,
-      }));
-    } else if (differenceInMonths(toDataTime, fromDataTime) <= 12) {
-      return data.map((e) => ({
-        datetime: format(e.datetime, "M/d HH:mm"),
-        temperature: e.temperature,
-        humidity: e.humidity,
-      }));
-    } else {
-      return data.map((e) => ({
-        datetime: format(e.datetime, "yyyy-MM-dd HH:mm"),
-        temperature: e.temperature,
-        humidity: e.humidity,
-      }));
-    }
-  } else {
-    const avragedData = avrageMeasuresData(data, avrageMode);
-    if (differenceInDays(toDataTime, fromDataTime) <= 7) {
-      return avragedData.map((e) => ({
-        datetime:
-          datetimeToDayOfWeek(e.datetimeRange[0]) +
-          " " +
-          format(e.datetimeRange[0], "HH:mm") +
-          " to " +
-          datetimeToDayOfWeek(e.datetimeRange[1]) +
-          " " +
-          format(e.datetimeRange[1], "HH:mm"),
-        temperature: e.temperature,
-        humidity: e.humidity,
-      }));
-    } else if (differenceInMonths(toDataTime, fromDataTime) <= 12) {
-      return avragedData.map((e) => ({
-        datetime:
-          format(e.datetimeRange[0], "d/M HH:mm") +
-          " to " +
-          format(e.datetimeRange[1], "d/M HH:mm"),
-        temperature: e.temperature,
-        humidity: e.humidity,
-      }));
-    } else {
-      return avragedData.map((e) => ({
-        datetime:
-          format(e.datetimeRange[0], "yyyy-MM-dd HH:mm") +
-          " to " +
-          format(e.datetimeRange[1], "yyyy-MM-dd HH:mm"),
-        temperature: e.temperature,
-        humidity: e.humidity,
-      }));
+  const chartData: ChartData[] = [];
+
+  let avrageArray: MeasuresDataInPersianDate[] = [];
+  let temperatureSum = 0;
+  let humiditySum = 0;
+
+  for (let i = 0; i < measuresData.length; i++) {
+    const element = measuresData[i];
+    if (
+      isBefore(element.datetime, fromJSDataTime) ||
+      isAfter(element.datetime, toJSDataTime)
+    )
+      continue;
+    const elementInPersianDate: MeasuresDataInPersianDate = {
+      datetime: toPersianDate(measuresData[i].datetime),
+      temperature: measuresData[i].temperature,
+      humidity: measuresData[i].humidity,
+    };
+
+    if (avrageMode === "none")
+      chartData.push({
+        datetime: dateToString(elementInPersianDate.datetime),
+        temperature: elementInPersianDate.temperature,
+        humidity: elementInPersianDate.humidity,
+      });
+    else {
+      if (avrageArray.length == 0) avrageArray.push(elementInPersianDate);
+      else if (
+        checkDifference(
+          avrageArray[0].datetime,
+          elementInPersianDate.datetime,
+          avrageMode
+        )
+      ) {
+        avrageArray.push(elementInPersianDate);
+      } else {
+        avrageArray.forEach((element) => {
+          temperatureSum += element.temperature;
+          humiditySum += element.humidity;
+        });
+        chartData.push({
+          datetime:
+            "(" +
+            dateToString(avrageArray[0].datetime) +
+            ", " +
+            dateToString(avrageArray.slice(-1)[0].datetime) +
+            ")",
+          temperature: parseFloat(
+            (temperatureSum / avrageArray.length).toFixed(1)
+          ),
+          humidity: parseFloat((humiditySum / avrageArray.length).toFixed(1)),
+        });
+        temperatureSum = humiditySum = 0;
+        avrageArray = [];
+      }
     }
   }
+
+  return chartData;
 }

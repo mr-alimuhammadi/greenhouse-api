@@ -5,6 +5,8 @@ import { DeviceData } from "../types/device-data";
 import extractChartData from "../utils/extract-chart-data";
 import { subDays } from "date-fns";
 import { AvrageMode } from "../types/avrage-mode";
+import DateObject from "date-object";
+const persian = require("date-object/calendars/cjs/persian");
 
 const chartDataRouter = express.Router();
 
@@ -20,8 +22,8 @@ chartDataRouter.get("/:deviceId", (req, res) => {
           (device) => device.deviceId === parseInt(req.params.deviceId)
         );
         if (deviceData) {
-          const today = new Date();
-          const yesterday = subDays(today, 1);
+          const today = new DateObject({ calendar: persian });
+          const yesterday = new DateObject(today).subtract(1, "day");
           extractChartData(deviceData.deviceData, yesterday, today).then(
             (chartData) => {
               res.json(chartData);
@@ -46,8 +48,16 @@ chartDataRouter.get("/", (req, res) => {
         if (deviceData) {
           extractChartData(
             deviceData.deviceData,
-            new Date(req.query.fromDateTime as string),
-            new Date(req.query.toDateTime as string),
+            new DateObject({
+              calendar: persian,
+              format: "YYYY/MM/DD HH:mm:ss",
+              date: req.query.fromDateTime as string,
+            }),
+            new DateObject({
+              calendar: persian,
+              format: "YYYY/MM/DD HH:mm:ss",
+              date: req.query.toDateTime as string,
+            }),
             req.query.avrageMode as AvrageMode
           ).then((chartData) => {
             res.json(chartData);
